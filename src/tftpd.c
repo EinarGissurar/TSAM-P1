@@ -9,7 +9,7 @@
 
 int main(int argc, char *argv[])
 {
-	int sockfd, opcode, mode_pointer, block_code, buffer, i;
+	int sockfd, opcode, mode_pointer, block_code, buffer, c, i;
 	struct sockaddr_in server, client;
 	char message[516], reply[516], stream_path[100];
 	char* filename;
