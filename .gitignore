@@ -31,3 +31,10 @@
 # Debug files
 *.dSYM/
 *.su
+
+# Agnoing files
+/example_data1
+/example_data2
+/example_data3
+/example_data4
+/tftpd
