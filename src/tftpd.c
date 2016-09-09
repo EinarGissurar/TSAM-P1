@@ -9,11 +9,13 @@
 
 int main(int argc, char *argv[])
 {
-	int sockfd, opcode, mode_pointer, block_code, buffer, c, i;
+	int sockfd, op_code, mode_pointer, buffer;
 	struct sockaddr_in server, client;
 	char message[516], reply[516], stream_path[100];
 	char* filename;
 	char* mode;
+	long unsigned datablock, block_code, block_reply;
+	unsigned int i;
 	int port_number = strtol(argv[1], NULL, 10);
 	FILE *data;
 
@@ -42,25 +44,20 @@ int main(int argc, char *argv[])
 
 	for(;;) {
 
-		sleep(1);
 		fprintf(stdout, "Waiting...\n");
 
 		/* We first have to accept a TCP connection, connfd is a fresh
            handle dedicated to this connection. */
-		fprintf(stdout, "socklen_t len\n");
-        socklen_t len = (socklen_t) sizeof(client);
+		socklen_t len = (socklen_t) sizeof(client);
       
         /* Receive from connfd, not sockfd. */
-        fprintf(stdout, "ssize_t\n");
         ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0, 
         	(struct sockaddr *) &client, &len);
 
-        opcode = message[1];
-        fprintf(stdout, "Opcode is: %d\n", opcode);
+        op_code = message[1];
+        fprintf(stdout, "Opcode is: %d\n", op_code);
 
-        //Clean reply message;
-        memset(reply,0,strlen(reply));
-    	switch(opcode) {
+        switch(op_code) {
     		case 1:
     			//message to read/write
     			filename = &message[2];
@@ -81,11 +78,16 @@ int main(int argc, char *argv[])
     		    fprintf(stdout, "Path is %s\n", stream_path);
     		    fflush(stdout);
 
-    		    if ((data = fopen(stream_path, "r")) == NULL) {
+    		    //Flush reply
+    		    memset(reply,0,strlen(reply));
+    		    data = fopen(stream_path, "r");
+
+    		    if (data == NULL) {
     		    	fprintf(stdout, "File not found\n");
 
     		    	reply[1] = 5 & 0xff;
-    		    	reply[3] = 1 & 0xff;
+    		    	reply[2] = (block_code >> 8) & 0xff;
+    		    	reply[3] = block_code & 0xff;
     		    	char error[] = "File not found\0";
     		    	for (i = 0; i < sizeof(error); i++) {
     		    		reply[4+i] = error[i];
@@ -95,16 +97,18 @@ int main(int argc, char *argv[])
     		    	fprintf(stdout, "File found\n");
 
     		    	buffer = 0;
-
+    		    	block_code = 1;
     		    	reply[1] = 3 & 0xff;
-    		    	reply[3] = 1 & 0xff;
-    		    	while ((c = fgetc(data)) != EOF && buffer < 512) {
-    		    		reply[buffer+4] = c &0xff;
+    		    	reply[3] = block_code & 0xff;
+    		    	while ((datablock = fgetc(data)) != EOF && buffer < 512) {
+    		    		reply[buffer+4] = datablock &0xff;
                         buffer++;
-                    	puts (reply);
     		    	}
+    		    	puts (reply);
     		    }
-    		    sendto(sockfd, reply, sizeof(reply)-1, 0, 
+    		    fprintf(stdout, "buffer = %d\n", buffer);
+    		    	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
+    		    	sendto(sockfd, reply, buffer+4, 0, 
     		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
 
 
@@ -114,6 +118,38 @@ int main(int argc, char *argv[])
     		case 3:
     		break;
     		case 4:
+    			block_reply = (message[2] << 8)  + message[3];
+    			fprintf(stdout, "Blockode reply = %lu\n", block_reply);
+       			if (block_code == block_reply) {
+    				fprintf(stdout, "Data recieved\n");
+    				fflush(stdout);
+
+    				memset(reply,0,strlen(reply));
+    				
+    				buffer = 0;
+    		    	block_code++;
+
+    				reply[0] = (3 >> 8) & 0xff;
+    		    	reply[2] = (block_code >> 8) & 0xff;
+    		    	reply[3] = block_code & 0xff;
+    		    	while ((datablock = fgetc(data)) != EOF && buffer < 512) {
+    		    		reply[buffer+4] = datablock & 0xff;
+                        buffer++;
+                    	
+    		    	}
+    		    	puts(reply);
+    		    	fprintf(stdout, "buffer = %d\n", buffer);
+    		    	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
+    		    	sendto(sockfd, reply, buffer+4, 0, 
+    		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
+    			}
+    			else {
+    				sleep(1);
+    				fprintf(stdout, "Resend last package\n");
+    				sendto(sockfd, reply, buffer+4, 0, 
+    		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
+    			}
+    			
     		break;
     		case 5:
     		break;
