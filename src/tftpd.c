@@ -1,20 +1,25 @@
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
+
+#define bytes_to_u16(MSB,LSB) (((unsigned int) ((unsigned char) MSB)) & 255)<<8 | (((unsigned char) LSB)&255)
 
 int main(int argc, char *argv[])
 {
 	int sockfd, op_code, mode_pointer, buffer;
 	struct sockaddr_in server, client;
-	char message[516], reply[516], stream_path[100];
+	unsigned char message[516], reply[516];
+	char stream_path[100];
 	char* filename;
 	char* mode;
-	long unsigned datablock, block_code, block_reply;
+	unsigned long datablock, block_code, block_reply;
 	unsigned int i;
 	int port_number = strtol(argv[1], NULL, 10);
 	FILE *data;
@@ -33,7 +38,7 @@ int main(int argc, char *argv[])
 	fprintf(stdout, "The server is on\n");
 	//fprintf(stdout, "argv[0] is: %s \n", argv[0]);
 	//fprintf(stdout, "argv[1] is: %s \n", argv[1]);
-	fprintf(stdout, "argv[2] is: %s \n", argv[2]);
+	//fprintf(stdout, "argv[2] is: %s \n", argv[2]);
 	//fprintf(stdout, "argv[3] is: %s \n", argv[3]);
 	//fprintf(stdout, "Port number is: %i \n", port_number);
 	
@@ -110,16 +115,16 @@ int main(int argc, char *argv[])
     		    	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
     		    	sendto(sockfd, reply, buffer+4, 0, 
     		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
-
-
     		break;
     		case 2:
     		break;
     		case 3:
     		break;
     		case 4:
-    			block_reply = (message[2] << 8)  + message[3];
-    			fprintf(stdout, "Blockode reply = %lu\n", block_reply);
+    			//block_reply = bytes_to_u16(message[2],message[3]);
+    			//block_reply = (unsigned long)(message[3] & 255  + (message[2] << 8) & 255);
+    			block_reply = (message[2] << 8) + message[3];
+    			fprintf(stdout, "Blockode reply = %d\n", block_reply);
        			if (block_code == block_reply) {
     				fprintf(stdout, "Data recieved\n");
     				fflush(stdout);
@@ -129,13 +134,14 @@ int main(int argc, char *argv[])
     				buffer = 0;
     		    	block_code++;
 
+    		    	fprintf(stdout, "Blockode to be sent is: %d\n", block_code);
+
     				reply[0] = (3 >> 8) & 0xff;
-    		    	reply[2] = (block_code >> 8) & 0xff;
-    		    	reply[3] = block_code & 0xff;
+    		    	reply[2] = (block_code >> 8) &0xff;
+    		    	reply[3] = block_code &0xff;
     		    	while ((datablock = fgetc(data)) != EOF && buffer < 512) {
     		    		reply[buffer+4] = datablock & 0xff;
                         buffer++;
-                    	
     		    	}
     		    	puts(reply);
     		    	fprintf(stdout, "buffer = %d\n", buffer);
@@ -149,7 +155,6 @@ int main(int argc, char *argv[])
     				sendto(sockfd, reply, buffer+4, 0, 
     		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
     			}
-    			
     		break;
     		case 5:
     		break;
