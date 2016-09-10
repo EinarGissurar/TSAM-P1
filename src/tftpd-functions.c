@@ -11,16 +11,16 @@
 
 int main(int argc, char *argv[])
 {
-	unsigned int sockfd, op_code, mode_pointer, buffer;
+	int sockfd, op_code, mode_pointer, buffer;
 	struct sockaddr_in server, client;
-	char message[516], reply[516];
-	char stream_path[100], error[100];
+	unsigned char message[516], reply[516];
+	char stream_path[100];
 	char* filename;
+	char* reply_pointer;
 	char* mode;
-	long datablock;
-	unsigned long block_code, block_reply;
-	int i;
-	unsigned int port_number = strtol(argv[1], NULL, 10);
+	unsigned long datablock, block_code, block_reply;
+	unsigned int i;
+	int port_number = strtol(argv[1], NULL, 10);
 	FILE *data;
 
 	/* Create and bind a TCP socket */
@@ -57,14 +57,14 @@ int main(int argc, char *argv[])
         /* Receive from connfd, not sockfd. */
         ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0, 
         	(struct sockaddr *) &client, &len);
-        fprintf(stdout, "Size of n: %zu\n", n);
+        fprintf(stdout, "Size of n: %d\n", n);
         op_code = message[1];
         fprintf(stdout, "Opcode is: %d\n", op_code);
 
         switch(op_code) {
     		case 1:
     			//message to read/write
-    			filename = (char*)&message[2];
+    			filename = &message[2];
 
     			//path to stream
     			memset(stream_path, 0, strlen(stream_path));
@@ -86,107 +86,39 @@ int main(int argc, char *argv[])
     		    data = fopen(stream_path, "r");
     		    memset(reply, 0, strlen(reply));
     		    if (data == NULL) {
-    		    	//fprintf(stdout, "File not found\n");
-    		    	reply[0] = (5 >> 8) & 0xff;
-    		    	reply[1] = 5 & 0xff;
-				   	reply[2] = (1 >> 8) &0xff;
-				   	reply[3] = 1 &0xff;
-				   	memset(error, 0, strlen(error));
-				   	strcpy(error, "File not found\0");
-    		    	for (i = 0; (error[i+1] =!'\0'); i++) {
-    		    		fprintf(stdout, "%c",error[i]);
-    		    		reply[4+i] = error[i];
-    		    		buffer++;
-					}
-					fprintf(stdout, "\n");
+    		    	fprintf(stdout, "File not found\n");
+    		    	reply_pointer = write_error(1, reply);
     		    }
     		    else {
     		    	fprintf(stdout, "File found\n");
     		    	block_code = 1;
-    		    	buffer = 0;
-					reply[0] = (3 >> 8) & 0xff;
-				   	reply[1] = 3 & 0xff;
-				   	reply[2] = (block_code >> 8) &0xff;
-				   	reply[3] = block_code &0xff;
-				   	while (((datablock = fgetc(data)) != EOF) && (buffer < 512)) {
-				   		reply[buffer+4] = datablock & 0xff;
-				        buffer++;
-				   	}
-				   	puts(reply);
+    		    	reply_pointer = write_reply(block_code, reply);
     		    }
     		    fprintf(stdout, "buffer = %d\n", buffer);
-			   	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
+    		    fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
     		    sendto(sockfd, reply, buffer+4, 0, 
     		    	  (struct sockaddr *) &client, (socklen_t) sizeof(client));
     		break;
     		case 2:
-    		//Function to test case 3.
-    		/*	reply[0] = (4 >> 8) & 0xff;
-   		    	reply[1] = 4 & 0xff;
-			   	reply[2] = (0 >> 8) &0xff;
-			   	reply[3] = 0 &0xff;
-			   	sendto(sockfd, reply, 0+4, 0, 
-    		    	  (struct sockaddr *) &client, (socklen_t) sizeof(client));
-    		break;
-    		*/
-    			reply[0] = (5 >> 8) & 0xff;
-   		    	reply[1] = 5 & 0xff;
-			   	reply[2] = (2 >> 8) &0xff;
-			   	reply[3] = 2 &0xff;
-			   	memset(error, 0, strlen(error));
-				strcpy(error, "Access Violation. Uploading not allowed.\0");
-   		    	for (i = 0; (error[i+1] =!'\0'); i++) {
-   		    		fprintf(stdout, "%c",error[i]);
-   		    		reply[4+i] = error[i];
-   		    		buffer++;
-				}
-				fprintf(stdout, "\n");
-				sendto(sockfd, reply, buffer+4, 0, 
-    		    	  (struct sockaddr *) &client, (socklen_t) sizeof(client));
     		break;
     		case 3:
-    			reply[0] = (5 >> 8) & 0xff;
-   		    	reply[1] = 5 & 0xff;
-			   	reply[2] = (2 >> 8) &0xff;
-			   	reply[3] = 2 &0xff;
-			   	memset(error, 0, strlen(error));
-			  	strcpy(error, "Illegal TFTP operation. Uploading not allowed\0");
-   		    	for (i = 0; (error[i+1] =!'\0'); i++) {
-   		    		fprintf(stdout, "%c",error[i]);
-   		    		reply[4+i] = error[i];
-   		    		buffer++;
-				}
-				fprintf(stdout, "\n");
-				sendto(sockfd, reply, buffer+4, 0, 
-    		    	  (struct sockaddr *) &client, (socklen_t) sizeof(client));
     		break;
     		case 4:
+    			//block_reply = bytes_to_u16(message[2],message[3]);
+    			//block_reply = (unsigned long)(message[3] & 255  + (message[2] << 8) & 255);
     			block_reply = (message[2] << 8) + message[3];
-    			fprintf(stdout, "Blockode reply = %lu\n", block_reply);
+    			fprintf(stdout, "Blockode reply = %d\n", block_reply);
        			if (block_code == block_reply) {
     				fprintf(stdout, "Data recieved\n");
     				fflush(stdout);
-    				memset(reply, 0, strlen(reply));
-    		    
+    				
     				block_code++;
 
-    		    	fprintf(stdout, "Blockode to be sent is: %lu\n", block_code);
-    		    	buffer = 0;
-					reply[0] = (3 >> 8) & 0xff;
-					reply[1] = 3 & 0xff;
-				   	reply[2] = (block_code >> 8) &0xff;
-				   	reply[3] = block_code &0xff;
-				   	if (data == NULL) {
-				   	}
-				   	else {
-					   	while (((datablock = fgetc(data)) != EOF) && (buffer < 512)) {
-					   		reply[buffer+4] = datablock & 0xff;
-					        buffer++;
-					   	}
-					   	puts(reply);
-					   	fprintf(stdout, "buffer = %d\n", buffer);
-	    		    	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
-	    		    }
+    		    	fprintf(stdout, "Blockode to be sent is: %d\n", block_code);
+    		    	reply_pointer = write_reply(block_code, reply);
+
+    		    	fprintf(stdout, "buffer = %d\n", buffer);
+    		    	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
     		    	sendto(sockfd, reply, buffer+4, 0, 
     		    		(struct sockaddr *) &client, (socklen_t) sizeof(client));
     			}
@@ -198,14 +130,63 @@ int main(int argc, char *argv[])
     			}
     		break;
     		case 5:
-    			fprintf(stdout, "Error code %d: %d\n", message[4], message[5]);
     		break;
     	}
 		
         /* Close the connection. */
         //shutdown(connfd, SHUT_RDWR);
         //close(connfd);
+
+
 	}
 
 	return 0;
+}
+char* write_reply(unsigned long block_code, char *reply) {
+	int buffer = 0;
+	reply[0] = (3 >> 8) & 0xff;
+   	reply[2] = (block_code >> 8) &0xff;
+   	reply[3] = block_code &0xff;
+   	while ((datablock = fgetc(data)) != EOF && buffer < 512) {
+   		reply[buffer+4] = datablock & 0xff;
+        buffer++;
+   	}
+   	puts(reply);
+   	fprintf(stdout, "buffer = %d\n", buffer);
+   	fprintf(stdout, "Size of reply: %lu\n", sizeof(reply));
+
+	return (char *) reply;
+}
+
+char* write_error(int error_code, char *reply) {
+	char *error;
+	reply[0] = (5 >> 8) & 0xff;
+   	reply[2] = (error_code >> 8) & 0xff;
+   	if (error_code == 0) {
+   		strcpy(error, "Unknown error.\0");
+   	}
+   	else if (error_code == 1) {
+   		strcpy(error, "File not found.\0");
+   	}
+   	else if (error_code == 2) {
+   		strcpy(error, "Access violation.\0");
+   	}
+   	else if (error_code == 3) {
+   		strcpy(error, "Disk full or allocation exceeded.\0");
+   	}
+   	else if (error_code == 4) {
+   		strcpy(error, "Illegal TFTP operation.\0");
+   	}
+   	else if (error_code == 5) {
+   		strcpy(error, "Unknown transfer ID.\0");
+   	}
+   	else if (error_code == 6) {
+   		strcpy(error, "File already esists.\0");
+   	}
+   	else if (error_code == 7) {
+   		strcpy(error, "No such user.\0");
+   	}
+   	strcat(reply, error);
+
+  	return (char *)reply;    			
 }
