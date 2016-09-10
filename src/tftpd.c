@@ -9,8 +9,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define bytes_to_u16(MSB,LSB) (((unsigned int) ((unsigned char) MSB)) & 255)<<8 | (((unsigned char) LSB)&255)
-
 int main(int argc, char *argv[])
 {
 	int sockfd, op_code, mode_pointer, buffer;
