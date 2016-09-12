@@ -41,7 +41,7 @@ char* filename;
 char* mode;
 int error_code;
 unsigned int sockfd, port_number, op_code, mode_pointer, buffer_size, i;
-long datablock;
+int datablock;
 unsigned long block_code, block_reply;
 FILE *data;
 
@@ -53,8 +53,11 @@ void write_reply() {
 	reply[1] = 3 & 0xff;
 	reply[2] = (block_code >> 8) &0xff;
 	reply[3] = block_code &0xff;
-	while ((datablock = fgetc(data)) != EOF && buffer_size < 512) {
-		reply[buffer_size+4] = datablock & 0xff;
+	while (buffer_size < 512) {
+		if ((datablock = fgetc(data)) == EOF) {
+			break;
+		}
+		reply[buffer_size+4] = (char)datablock;
 		buffer_size++;
 	}
 	puts(reply);
