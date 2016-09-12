@@ -6,7 +6,7 @@ LOADLIBES =
 LDLIBS =
 
 .DEFAULT: all
-.PHONY: all
+.PHONY: all zip 
 all: tftpd
 
 clean:
@@ -14,3 +14,6 @@ clean:
 
 distclean: clean
 	rm -f tftpd
+
+zip:
+	cd ..; zip tftpd.zip README src/tftpd.c src/Makefile AUTHORS
