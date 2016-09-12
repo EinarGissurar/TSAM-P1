@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 			break;
 			case ACK:
-				block_reply = (message[2] << 8) + message[3];
+				block_reply = (((unsigned char*)message)[2] << 8) + ((unsigned char*)message)[3];
 				fprintf(stdout, "Blockode reply = %lu\n", block_reply);
 
 				if (block_code == block_reply) {
