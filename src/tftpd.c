@@ -51,10 +51,11 @@ FILE *data;
 
 void write_reply() {
 	memset(reply, 0, sizeof(reply)); // Clean reply
-
 	buffer_size = 0;
+	//Add Opcode 3
 	reply[0] = (3 >> 8) & 0xff;
 	reply[1] = 3 & 0xff;
+	//Add Block code
 	reply[2] = (block_code >> 8) &0xff;
 	reply[3] = block_code &0xff;
 	while (buffer_size < 512) {
@@ -67,6 +68,14 @@ void write_reply() {
 	puts(reply);
 	fprintf(stdout, "buffer size = %d\n", buffer_size);
 	fprintf(stdout, "Size of reply: %d\n", buffer_size+4);
+
+	sendto(sockfd, reply, buffer_size+4, 0,
+		  (struct sockaddr *) &client, (socklen_t) sizeof(client));
+	if (buffer_size < 512) {
+		fprintf(stdout, "Last package. Closing stream.\n");
+		fclose(data);
+		data = NULL;
+	}
 }
 
 void write_error() {
@@ -77,7 +86,7 @@ void write_error() {
 	// Add Error code.
 	reply[2] = (error_code >> 8) & 0xff;
 	reply[3] = error_code & 0xff;
-	// Add appropriate string.
+	//Add appropriate string.
 	if (error_code == ERROR_CODE_0) {		//Unknown error.
 		buffer_size = sizeof(ERROR_0);
 		strncpy(&reply[4], ERROR_0, buffer_size);
@@ -115,6 +124,11 @@ void write_error() {
 		printf("%c",reply[i+4]);
 	}
 	printf("\"\n");
+
+	if (data != NULL) { //Close datastream, if file is open.
+		fclose(data);
+		data = NULL;
+	}
 }
 
 
@@ -174,7 +188,7 @@ int main(int argc, char *argv[]) {
 		return(42);
 	}
 	// for making sure that prefix doesn't match file with similar name
-	strcat(shared_directory_path, "/");
+	strncat(shared_directory_path, "/", 1);
 	printf("shared_directory_path: %s\n", shared_directory_path);
 
 	while(1) {
@@ -238,8 +252,6 @@ int main(int argc, char *argv[]) {
 					block_code = 1;
 					write_reply();
 				}
-				sendto(sockfd, reply, buffer_size+4, 0,
-					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				break;
 			case WRQ:
 				//Function to test case 3.
@@ -271,21 +283,28 @@ int main(int argc, char *argv[]) {
 				if (block_code == block_reply) {
 					fprintf(stdout, "Data recieved\n");
 					fflush(stdout);
-
-					block_code++;
-					fprintf(stdout, "Blockode to be sent is: %lu\n", block_code);
-					write_reply();
+					if (data == NULL) {
+						fprintf(stdout, "File delivered. Goodbye.\n");
+					}
+					else {
+						block_code++;
+						fprintf(stdout, "Blockode to be sent is: %lu\n", block_code);
+						write_reply();
+					}
 				}
 				else {
 					sleep(1);
 					fprintf(stdout, "Resend last package\n");
+					sendto(sockfd, reply, buffer_size+4, 0,
+						  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				}
-				sendto(sockfd, reply, buffer_size+4, 0,
-					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				break;
 			case ERROR:
 				fprintf(stdout, "Error code %d: %s\n", message[3], &message[4]);
-
+				if (data != NULL) { //Close datastream, if file is open.
+					fclose(data);
+					data = NULL;
+				}
 				break;
 		}
 	}
