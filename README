@@ -1,23 +1,21 @@
 There are three functions in the program:
 
-1: "write_reply" is a void function that reads data from the file stream and compiles a data package to be sent back to client.
+1: "write_reply" is a void function that reads data from the file stream and compiles a data package to be sent back to client. If the data package happens to be less than 512 bytes, it will close the connection after sending the package.
 
 2: "write_error" is a void function that compiles an error message, based on the value assigned to "error_code"
 
-3: "main" is the main function that runs the server. When the main function is run, the server will bind to a port that was specificed and write an access path based on what path was provided. For example, if user imputs "tftpd 2000 data" the program will bind to port 2000 and create a file path "data\"
+3: "main" is the main function that runs the server. When the main function is run, the server will bind to a port that was specified and write an access path based on what path was provided. For example, if user inputs "tftpd 2000 data" the program will bind to port 2000 and create a file path "data\"
 It will then begin listening on that port and enter an endless while loop.
 
-When the program recieves a request from a client, it will read the opcode and enter a switch case, where handles the request based on aformentioned opcode.
+When the program receives a request from a client, it will read the opcode and enter a switch case, which handles the request based on aforementioned opcode.
 
-In cases where it recieves a Read Request (opcode 1), the program will attempt to open requested file, based on predetermined file path. If file is not found, the program will assigned the value ERROR_CODE_1, indicating a "File Not Found" error and call the write_error function. Otherwise, if file is found, it will assignd the value "1" to block_code and call the write_reply function.
+In cases where it receives a Read Request (opcode 1), the program will attempt to open requested file, based on predetermined file path. If file is not found, the program will assigned the value ERROR_CODE_1 to error_code, indicating a "File Not Found" error and call the write_error function. Otherwise, if file is found, it will assigned the value "1" to block_code and call the write_reply function.
 
-Handling Write Requests (opcode 2) has not been implemented, as requested by assignment. When a server sends a write request, the server will assign the value "ERROR_CODE_2" to error_code, indicating "Access Violation" and call the write_error function.
+Handling Write Requests (opcode 2) has not been implemented, as requested by the assignment. When a server sends a write request, the server will assign the value "ERROR_CODE_2" to error_code, indicating "Access Violation" and call the write_error function.
 
 Similarly, if client ever attempts to send a Data package (opcode 3), "ERROR_CODE_4" will be assigned to error_code ("Illegal TFTP operation") and the write_error function is called.
 
-When the server receives an Acknowledgment (opcode 4)
-... TODO
+When the server receives an Acknowledgment (opcode 4), it will start by checking the received block code and compare it to the local block code value. If it is the same, it means that the client received the last data package and is acknowledging that it did. The server will then increment the local block code by one and call the write_reply function. If the block code differs, the server will attempt to send the last data package. Additionally, if the file package has been closed, it will interpret it as that the file has been successfully delivered.
 
-Finally, error messages (opcode 5) 
-... TODO
+Finally, error messages (opcode 5) are handled by the server, by writing out the error message, check if there's an open file connection and close it.
 
