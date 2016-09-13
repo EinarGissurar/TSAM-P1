@@ -39,18 +39,15 @@
 #define ERROR_7 "No such user.\0"
 
 struct sockaddr_in server, client;
-
-char message[516], reply[516], stream_path[255];
-char* filename;
-char* mode;
+char reply[516];
 int error_code;
-unsigned int sockfd, op_code, mode_pointer, buffer_size, i;
+unsigned int sockfd, buffer_size, iterator;
 int datablock;
-unsigned long block_code, block_reply;
+unsigned long block_code;
 FILE *data, *temp;
 
-
-void write_reply() {
+//Write a data package to client.
+void write_data_package() {
 	memset(reply, 0, sizeof(reply)); // Clean reply
 	buffer_size = 0;
 	//Add operation code 3
@@ -60,13 +57,13 @@ void write_reply() {
 	reply[2] = (block_code >> 8) &0xff;
 	reply[3] = block_code &0xff;
 	while (buffer_size < 512) {
-		if ((datablock = fgetc(data)) == EOF) {
+		if ((datablock = fgetc(data)) == EOF) {//Check if file has reached the end.
 			break;
 		}
 		reply[buffer_size+4] = (char)datablock;
 		buffer_size++;
 	}
-	puts(reply);
+	//puts(reply);
 	fprintf(stdout, "buffer size = %d\n", buffer_size);
 	fprintf(stdout, "Size of reply: %d\n", buffer_size+4);
 
@@ -79,6 +76,7 @@ void write_reply() {
 	}
 }
 
+//Send an error back to client.
 void write_error() {
 	memset(reply, 0, sizeof(reply));
 	//Add operation code 5
@@ -121,8 +119,8 @@ void write_error() {
 		strncpy(&reply[4], ERROR_7, buffer_size);
 	}
 	printf("Sending ERROR message: \"");
-	for (i = 0; i < buffer_size; i++) {
-		printf("%c",reply[i+4]);
+	for (iterator = 0; iterator < buffer_size; iterator++) {
+		printf("%c",reply[iterator+4]);
 	}
 	printf("\"\n");
 
@@ -169,11 +167,13 @@ void convert_to_nvt_ascii(FILE *source, FILE *destination) {
 	}
 }
 
-
+//Main function
 int main(int argc, char *argv[]) {
+	char message[516], stream_path[255], shared_directory_path [PATH_MAX+1], absolute_file_path [PATH_MAX+1];
+	char *ptr, *mode, *filename;
+	unsigned int op_code, mode_pointer;
+	unsigned long recieved_block_code;
 
-	char shared_directory_path [PATH_MAX+1], absolute_file_path [PATH_MAX+1];
-	char *ptr;
 
 	// checking number of arguments
 	if (argc != 3) {
@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
 				}
 				else {				//File found. Begin sending data.
 					block_code = 1;
-					write_reply();
+					write_data_package();
 				}
 				break;
 			case WRQ:
@@ -318,10 +318,10 @@ int main(int argc, char *argv[]) {
 				break;
 			case ACK:
 				//Fetch block code from message
-				block_reply = (((unsigned char*)message)[2] << 8) + ((unsigned char*)message)[3];
-				fprintf(stdout, "Blockode reply = %lu\n", block_reply);
+				recieved_block_code = (((unsigned char*)message)[2] << 8) + ((unsigned char*)message)[3];
+				fprintf(stdout, "Blockode reply = %lu\n", recieved_block_code);
 
-				if (block_code == block_reply) { //Check if last package was delivered.
+				if (block_code == recieved_block_code) { //Check if last package was delivered.
 					fprintf(stdout, "Data recieved\n");
 					fflush(stdout);
 					if (data == NULL) {	//Filestream has been closed.
@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
 					else { //Send next package.
 						block_code++;
 						fprintf(stdout, "Blockode to be sent is: %lu\n", block_code);
-						write_reply();
+						write_data_package();
 					}
 				}
 				else { //Block code mismatch. Resend last package.
