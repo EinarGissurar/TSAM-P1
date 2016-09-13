@@ -334,7 +334,6 @@ int main(int argc, char *argv[]) {
 					}
 				}
 				else { //Block code mismatch. Resend last package.
-					sleep(1);
 					fprintf(stdout, "Resend last package\n");
 					sendto(sockfd, reply, buffer_size+4, 0,
 						  (struct sockaddr *) &client, (socklen_t) sizeof(client));
