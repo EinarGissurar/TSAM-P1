@@ -71,43 +71,45 @@ void write_reply() {
 
 void write_error() {
 	memset(reply, 0, sizeof(reply));
+	//Add Opcode 5
 	reply[0] = (5 >> 8) & 0xff;
 	reply[1] = 5 & 0xff;
+	// Add Error code.
 	reply[2] = (error_code >> 8) & 0xff;
 	reply[3] = error_code & 0xff;
-	if (error_code == ERROR_CODE_0) {
+	// Add appropriate string.
+	if (error_code == ERROR_CODE_0) {		//Unknown error.
 		buffer_size = sizeof(ERROR_0);
 		strncpy(&reply[4], ERROR_0, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_1) {
+	else if (error_code == ERROR_CODE_1) {	//File not found.
 		buffer_size = sizeof(ERROR_1);
 		strncpy(&reply[4], ERROR_1, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_2) {
+	else if (error_code == ERROR_CODE_2) {	//Access violation.
 		buffer_size = sizeof(ERROR_2);
 		strncpy(&reply[4], ERROR_2, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_3) {
+	else if (error_code == ERROR_CODE_3) {	//Disk full or allocation exceeded.
 		buffer_size = sizeof(ERROR_3);
 		strncpy(&reply[4], ERROR_3, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_4) {
+	else if (error_code == ERROR_CODE_4) {	//Illegal TFTP operation.
 		buffer_size = sizeof(ERROR_4);
 		strncpy(&reply[4], ERROR_4, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_5) {
+	else if (error_code == ERROR_CODE_5) {	//Unknown transfer ID.
 		buffer_size = sizeof(ERROR_5);
 		strncpy(&reply[4], ERROR_5, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_6) {
+	else if (error_code == ERROR_CODE_6) {	//File already exists.
 		buffer_size = sizeof(ERROR_6);
 		strncpy(&reply[4], ERROR_6, buffer_size);
 	}
-	else if (error_code == ERROR_CODE_7) {
+	else if (error_code == ERROR_CODE_7) {	//No such user.
 		buffer_size = sizeof(ERROR_7);
 		strncpy(&reply[4], ERROR_7, buffer_size);
 	}
-	//puts(reply);
 	printf("Sending ERROR message: \"");
 	for (i = 0; i < buffer_size; i++) {
 		printf("%c",reply[i+4]);
@@ -121,8 +123,9 @@ bool prefix(const char *prefix, const char *string) {
 }
 
 void sig_handler(int signal_n) {
-	if (signal_n == SIGINT)
+	if (signal_n == SIGINT) {
 		printf("\nShutting down...\n");
+	}
 
 	/* Close the connection. */
 	shutdown(sockfd, SHUT_RDWR);
@@ -200,11 +203,11 @@ int main(int argc, char *argv[]) {
 
 				//path to stream
 				memset(stream_path, 0, sizeof(stream_path));
-				strcpy(stream_path, shared_directory);
-				strcat(stream_path, "/");
-				strcat(stream_path, filename);
+				strncpy(stream_path, shared_directory, strlen(shared_directory));
+				strncat(stream_path, "/", 1);
+				strncat(stream_path, filename, sizeof(stream_path)-strlen(shared_directory)+1);
+				
 				// checking if req. file is inside shared directory
-
 				printf("Filename is: %s\n", filename);
 				printf("Mode is %s\n", mode);
 
@@ -222,15 +225,16 @@ int main(int argc, char *argv[]) {
 				else
 					printf("Path is %s\n", absolute_file_path);
 
-				//Flush reply
+				//Open stream path.
 				data = fopen(stream_path, "r");
+				
+				//Flush reply
 				memset(reply, 0, sizeof(reply));
-				if (data == NULL) {
+				if (data == NULL) {	//File not found. Write error message.
 					error_code = ERROR_CODE_1;
 					write_error();
 				}
-				else {
-					fprintf(stdout, "File found\n");
+				else {				//File found. Begin sending data.
 					block_code = 1;
 					write_reply();
 				}
@@ -246,15 +250,16 @@ int main(int argc, char *argv[]) {
 				reply[3] = 0 &0xff;
 				sendto(sockfd, reply, 4, 0,
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
-			break; */
+				break;
+				*/
 
-				error_code = ERROR_CODE_2;
+				error_code = ERROR_CODE_2; //Write Requests forbidden. Write error message.
 				write_error();
 				sendto(sockfd, reply, buffer_size+4, 0,
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				break;
 			case DATA:
-				error_code = ERROR_CODE_4;
+				error_code = ERROR_CODE_4; //Illegal FTTP operation. Write error message. 
 				write_error();
 				sendto(sockfd, reply, buffer_size+4, 0,
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
@@ -280,6 +285,7 @@ int main(int argc, char *argv[]) {
 				break;
 			case ERROR:
 				fprintf(stdout, "Error code %d: %s\n", message[3], &message[4]);
+
 				break;
 		}
 	}
