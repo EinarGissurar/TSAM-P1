@@ -47,7 +47,8 @@ int error_code;
 unsigned int sockfd, op_code, mode_pointer, buffer_size, i;
 int datablock;
 unsigned long block_code, block_reply;
-FILE *data;
+FILE *data, *temp;
+
 
 void write_reply() {
 	memset(reply, 0, sizeof(reply)); // Clean reply
@@ -148,6 +149,26 @@ void sig_handler(int signal_n) {
 	exit(0);
 }
 
+// change all occurances "\r\n" to "\r\0\n"
+void convert_to_nvt_ascii(FILE *source, FILE *destination) {
+
+	int input_char;
+	printf("CONVERTING FILE TO NETASCII\n");
+	while ((input_char = fgetc(source)) != EOF) {
+		if (input_char == '\r') {
+			fputc('\r', destination);
+			fputc('\0', destination);
+		}
+		else if (input_char == '\n'){// EOF occurs
+			fputc('\r', destination);
+			fputc('\n', destination);
+		}
+		else {
+			fputc(input_char, destination);
+		}
+	}
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -220,7 +241,7 @@ int main(int argc, char *argv[]) {
 				strncpy(stream_path, shared_directory, strlen(shared_directory));
 				strncat(stream_path, "/", 1);
 				strncat(stream_path, filename, sizeof(stream_path)-strlen(shared_directory)+1);
-				
+
 				// checking if req. file is inside shared directory
 				printf("Filename is: %s\n", filename);
 				printf("Mode is %s\n", mode);
@@ -241,7 +262,26 @@ int main(int argc, char *argv[]) {
 
 				//Open stream path.
 				data = fopen(stream_path, "r");
-				
+
+				char *p = mode;
+				for ( ; *p; ++p) *p = tolower(*p); // change mode string to lowercase, just in case
+
+				// convert file into netascii format (NVT)
+				// http://www.hw-group.com/support/nvt/index_en.html
+				if (strcmp(mode, "netascii") == 0) {
+					char temp_file_name[] = "/tmp/fileXXXXXX";
+					int fd = mkstemp(temp_file_name);
+					close(fd);
+					temp = fopen(temp_file_name, "w+"); // empty file
+
+					convert_to_nvt_ascii(data, temp);
+					fseek(temp, 0, SEEK_SET);
+
+					fclose(data); // closing original file
+					data = temp; // changing original file to temporary (with edited EOL)
+				}
+
+
 				//Flush reply
 				memset(reply, 0, sizeof(reply));
 				if (data == NULL) {	//File not found. Write error message.
@@ -271,7 +311,7 @@ int main(int argc, char *argv[]) {
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				break;
 			case DATA:
-				error_code = ERROR_CODE_4; //Illegal FTTP operation. Write error message. 
+				error_code = ERROR_CODE_4; //Illegal FTTP operation. Write error message.
 				write_error();
 				sendto(sockfd, reply, buffer_size+4, 0,
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
