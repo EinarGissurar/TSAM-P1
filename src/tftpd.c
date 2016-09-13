@@ -52,10 +52,10 @@ FILE *data;
 void write_reply() {
 	memset(reply, 0, sizeof(reply)); // Clean reply
 	buffer_size = 0;
-	//Add Opcode 3
+	//Add operation code 3
 	reply[0] = (3 >> 8) & 0xff;
 	reply[1] = 3 & 0xff;
-	//Add Block code
+	//Add plock code
 	reply[2] = (block_code >> 8) &0xff;
 	reply[3] = block_code &0xff;
 	while (buffer_size < 512) {
@@ -80,10 +80,10 @@ void write_reply() {
 
 void write_error() {
 	memset(reply, 0, sizeof(reply));
-	//Add Opcode 5
+	//Add operation code 5
 	reply[0] = (5 >> 8) & 0xff;
 	reply[1] = 5 & 0xff;
-	// Add Error code.
+	// Add error code.
 	reply[2] = (error_code >> 8) & 0xff;
 	reply[3] = error_code & 0xff;
 	//Add appropriate string.
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
 	int port_number = strtol(argv[1], NULL, 10);
 	char *shared_directory = argv[2];
 
-	/* Create and bind a TCP socket */
+	/* Create and bind a UDP socket */
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
 	/* Network functions need arguments in network byte order instead of
@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
 
 		printf("\nWaiting...\n");
 
-		/* We first have to accept a TCP connection, connfd is a fresh
+		/* We first have to accept a UDP connection, connfd is a fresh
 		   handle dedicated to this connection. */
 		socklen_t len = (socklen_t) sizeof(client);
 
@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
 
 		switch(op_code) {
 			case RRQ:
-				//message to read/write
+				//Extract filename from message.
 				filename = (char*)&message[2];
 				//find mode
 				for (mode_pointer = 2; message[mode_pointer] != '\0'; mode_pointer++) {}
@@ -277,22 +277,23 @@ int main(int argc, char *argv[]) {
 					  (struct sockaddr *) &client, (socklen_t) sizeof(client));
 				break;
 			case ACK:
+				//Fetch block code from message
 				block_reply = (((unsigned char*)message)[2] << 8) + ((unsigned char*)message)[3];
 				fprintf(stdout, "Blockode reply = %lu\n", block_reply);
 
-				if (block_code == block_reply) {
+				if (block_code == block_reply) { //Check if last package was delivered.
 					fprintf(stdout, "Data recieved\n");
 					fflush(stdout);
-					if (data == NULL) {
+					if (data == NULL) {	//Filestream has been closed.
 						fprintf(stdout, "File delivered. Goodbye.\n");
 					}
-					else {
+					else { //Send next package.
 						block_code++;
 						fprintf(stdout, "Blockode to be sent is: %lu\n", block_code);
 						write_reply();
 					}
 				}
-				else {
+				else { //Block code mismatch. Resend last package.
 					sleep(1);
 					fprintf(stdout, "Resend last package\n");
 					sendto(sockfd, reply, buffer_size+4, 0,
