@@ -273,6 +273,7 @@ int main(int argc, char *argv[]) {
 			case ACK:					
 				if (reply[1] == 5) { //Check if last reply was an error message.
 					fprintf(stdout, "Sent error message was recieved. Goodbye.\n");
+					memset(reply, 0, sizeof(reply));
 					break;
 				}
 				//Fetch block code from message
