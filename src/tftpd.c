@@ -39,7 +39,7 @@ const char * const err_msg[] = {
 	"Unknown transfer ID.",
 	"File already exists.",
 	"No such user."
-	};
+};
 
 struct sockaddr_in server, client;
 char reply[516];
@@ -69,8 +69,7 @@ void send_data_packet() {
 	fprintf(stdout, "buffer size = %d\n", buffer_size);
 	fprintf(stdout, "Size of reply: %d\n", buffer_size+4);
 
-	sendto(sockfd, reply, buffer_size+4, 0,
-		  (struct sockaddr *) &client, (socklen_t) sizeof(client));
+	sendto(sockfd, reply, buffer_size+4, 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
 	if (buffer_size < 512) {
 		fprintf(stdout, "Last package. Closing stream.\n");
 		fclose(data);
@@ -103,11 +102,12 @@ void send_error_response(ErrorCode error_code) {
 	}
 }
 
-
+// Check if string contains a certain prefix.
 bool is_prefix(const char *prefix, const char *string) {
     return strncmp(prefix, string, strlen(prefix)) == 0;
 }
 
+// Signal handler function.
 void sig_handler(int signal_n) {
 	if (signal_n == SIGINT) {
 		printf("\nShutting down...\n");
@@ -116,13 +116,11 @@ void sig_handler(int signal_n) {
 	/* Close the connection. */
 	shutdown(sockfd, SHUT_RDWR);
 	close(sockfd);
-
 	exit(0);
 }
 
 // change all occurances "\r\n" to "\r\0\n"
 void convert_to_nvt_ascii(FILE *source, FILE *destination) {
-
 	int input_char;
 	printf("CONVERTING FILE TO NETASCII\n");
 	while ((input_char = fgetc(source)) != EOF) {
@@ -272,7 +270,11 @@ int main(int argc, char *argv[]) {
 				send_error_response(ILLEGAL_OPERATION);
 				break;
 
-			case ACK:
+			case ACK:					
+				if (reply[1] == 5) { //Check if last reply was an error message.
+					fprintf(stdout, "Sent error message was recieved. Goodbye.\n");
+					break;
+				}
 				//Fetch block code from message
 				recieved_block_code = (((unsigned char*)message)[2] << 8) + ((unsigned char*)message)[3];
 				fprintf(stdout, "Blockode reply = %lu\n", recieved_block_code);
