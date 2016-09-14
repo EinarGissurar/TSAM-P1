@@ -14,7 +14,7 @@ There are only few functions in the program (excluding main() function):
   - If the data package happens to be less than 512 bytes, it will close the file after sending the package.
 
 2. void send_error_response(ErrorCode error_code);
-  - This is function for creating an error message, based on the value assigned to "error_code". At the end of function, packet with error response in sent to the client and file is closed.
+  - This is function for creating an error message, based on the value assigned to "error_code". At the end of function, packet with error response is sent to the client and file is closed.
   
 3. bool is_prefix(const char *prefix, const char *string);
   - returns true if string (the second parameter) contains prefix (the first parameter), otherwise returns false. 
@@ -42,14 +42,20 @@ Usage:
 ==================================================
 Short description of what happens in infinite loop:
 
-When the program receives a request from a client, it will read the opcode and enter a switch case, which handles the request based on aforementioned opcode.
+When the program receives a request from a client, it will read the opcode and enter a switch case, which handles the request based on the aforementioned opcode:
 
-In case Read Request is received (opcode 1), the program will check, if file is inside shared directory (sharing files outside of directory is forbidden and if client tries to use relative path to such a file he will receive FILE_NOT_FOUND error). Then it will attempt to open requested file, based on predetermined file path. If file is not found, the program will send error response to the client by calling send_error_response(FILE_NOT_FOUND). Otherwise, if file is found, it will assign the value "1" to block_code and call the send_data_packet() function.
+-(opcode 1);
+In caseses where a Read Request is received, the program will check if file is inside shared directory (sharing files outside of directory is forbidden and if client tries to use relative path to such a file he will receive FILE_NOT_FOUND error). It will then attempt to open requested file, based on predetermined file path. If file is not found, the program will send error response to the client by calling send_error_response(FILE_NOT_FOUND). Otherwise, if file is found, it will assign the value "1" to block_code and call the send_data_packet() function.
 
-Handling Write Requests (opcode 2) has not been implemented, as requested by the assignment. When a server sends a write request, the server will call send_error_response(ACCESS_VIOLATION).
-Similarly, if client ever attempts to send a Data package (opcode 3), send_error_response(ILLEGAL_OPERATION) is called and error message is sent to the client.
+-(opcode 2);
+Handling Write Requests has not been implemented, as requested by the assignment. When a server sends a write request, the server will call send_error_response(ACCESS_VIOLATION).
 
-When the server receives an Acknowledgment (opcode 4), it will compare the received block code to the last sent block code. If they are same, it means that the client is acknowledging the he received the last data package. The server will then increment the local block code and call the send_data_packet() function. If the block code differs, the server will attempt to send the last data package.
+-(opcode 3);
+Similarly, if client ever attempts to send a Data package, send_error_response(ILLEGAL_OPERATION) is called and error message is sent to the client.
 
-Finally, error messages (opcode 5) are handled by the server, by writing out the error message, check if there's an open file connection and close it.
+-(opcode 4);
+When the server receives an Acknowledgment, it will compare the received block code to the last sent block code. If they are same, it means that the client is acknowledging that he received the last data package. The server will then increment the local block code and call the send_data_packet() function. If the block code differs, the server will attempt to send the last data package.
+
+-(opcode 5);
+Finally, error messages are handled by the server, by writing out the error message, check if there's an open file connection and close it.
 
