@@ -1,21 +1,55 @@
-There are three functions in the program:
+/*
+ * Programming Assignment 1 – Trivial File Transfer Protocol
+ *
+ * Team:
+ * Einar Örn Gissurarson <einarog05@ru.is>
+ * Óskar Örn <oskart10@ru.is>
+ * Peter Hostačný <peterh16@ru.is>
+ */
+ 
+There are only few functions in the program (excluding main() function):
+ 
+1. void send_data_packet();
+  - This is function that reads bunch of data from the file, compiles a data package and sends it to the client.
+  - If the data package happens to be less than 512 bytes, it will close the file after sending the package.
 
-1: "write_reply" is a void function that reads data from the file stream and compiles a data package to be sent back to client. If the data package happens to be less than 512 bytes, it will close the connection after sending the package.
+2. void send_error_response(ErrorCode error_code);
+  - This is function for creating an error message, based on the value assigned to "error_code". At the end of function, packet with error response in sent to the client and file is closed.
+  
+3. bool is_prefix(const char *prefix, const char *string);
+  - returns true if string (the second parameter) contains prefix (the first parameter), otherwise returns false. 
 
-2: "write_error" is a void function that compiles an error message, based on the value assigned to "error_code"
+4. void sig_handler(int signal_n);
+  - This function was created for purposes of signal handling. Server is running in infinite loop, so the only way how to kill the application is by sending signal to a process. Our signal handler react only to signal SIGINT, other signals will probably kill our application without any addition reaction.
+  
+5. void convert_to_nvt_ascii(FILE *source, FILE *destination);
+  - This function reads whole file pointed by first argument (FILE *source), then it converts all occurances of '\r' to "\r\0" and '\n' to '\r\n' and writes to the file pointed by second argument (FILE *destination). This is because of NVT end-of-line representation (netascii -> Telnet -> NVT)
+  <<< citation: "An end-of-line is transmitted as the character sequence CR (carriage return) followed by LF (line feed). If it is desired to transmit an actual carriage return this is transmitted as a carriage return followed by a NUL (all bits zero) character." [http://www.hw-group.com/support/nvt/index_en.html] >>>
+ 
 
-3: "main" is the main function that runs the server. When the main function is run, the server will bind to a port that was specified and write an access path based on what path was provided. For example, if user inputs "tftpd 2000 data" the program will bind to port 2000 and create a file path "data\"
-It will then begin listening on that port and enter an endless while loop.
+As mentioned before our tftp server runs in infinite loop in main() function.
+After starting server these steps happen:
+  - check number of arguments (printed usage if this is wrong)
+  - start handling signal SIGINT (Ctrl-C)
+  - read port number from arguments and create socket
+  - bind socket to a specified port number and start listening on all network devices (addresses)
+  - write path of shared directory to output
+  - step into infinite loop and start waiting to client (blocking recvfrom())
+  
+Usage:
+./tftpd <port> <shared_directory>
+
+==================================================
+Short description of what happens in infinite loop:
 
 When the program receives a request from a client, it will read the opcode and enter a switch case, which handles the request based on aforementioned opcode.
 
-In cases where it receives a Read Request (opcode 1), the program will attempt to open requested file, based on predetermined file path. If file is not found, the program will assigned the value ERROR_CODE_1 to error_code, indicating a "File Not Found" error and call the write_error function. Otherwise, if file is found, it will assigned the value "1" to block_code and call the write_reply function.
+In case Read Request is received (opcode 1), the program will check, if file is inside shared directory (sharing files outside of directory is forbidden and if client tries to use relative path to such a file he will receive FILE_NOT_FOUND error). Then it will attempt to open requested file, based on predetermined file path. If file is not found, the program will send error response to the client by calling send_error_response(FILE_NOT_FOUND). Otherwise, if file is found, it will assign the value "1" to block_code and call the send_data_packet() function.
 
-Handling Write Requests (opcode 2) has not been implemented, as requested by the assignment. When a server sends a write request, the server will assign the value "ERROR_CODE_2" to error_code, indicating "Access Violation" and call the write_error function.
+Handling Write Requests (opcode 2) has not been implemented, as requested by the assignment. When a server sends a write request, the server will call send_error_response(ACCESS_VIOLATION).
+Similarly, if client ever attempts to send a Data package (opcode 3), send_error_response(ILLEGAL_OPERATION) is called and error message is sent to the client.
 
-Similarly, if client ever attempts to send a Data package (opcode 3), "ERROR_CODE_4" will be assigned to error_code ("Illegal TFTP operation") and the write_error function is called.
-
-When the server receives an Acknowledgment (opcode 4), it will start by checking the received block code and compare it to the local block code value. If it is the same, it means that the client received the last data package and is acknowledging that it did. The server will then increment the local block code by one and call the write_reply function. If the block code differs, the server will attempt to send the last data package. Additionally, if the file package has been closed, it will interpret it as that the file has been successfully delivered.
+When the server receives an Acknowledgment (opcode 4), it will compare the received block code to the last sent block code. If they are same, it means that the client is acknowledging the he received the last data package. The server will then increment the local block code and call the send_data_packet() function. If the block code differs, the server will attempt to send the last data package.
 
 Finally, error messages (opcode 5) are handled by the server, by writing out the error message, check if there's an open file connection and close it.
 
